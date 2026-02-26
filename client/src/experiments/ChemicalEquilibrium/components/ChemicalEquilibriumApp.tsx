@@ -189,7 +189,7 @@ const FLAME_TEST_SECTIONS = [
 const WET_TEST_BASIC_SECTIONS = [
   {
     symbol: "GR",
-    label: "GROUPS",
+    label: "GROUP TESTS",
     description: "Classify and identify basic radicals based on their group characteristics and reactions.",
   },
 ];
@@ -508,7 +508,7 @@ export default function ChemicalEquilibriumApp({
 
   // Equipment modifications for Basic Radicals section
   if (activeTopLevelSection === "BR" && activeBasicRadicalsSubsection !== null && dryTestEquipmentToUse) {
-    // For Wet Test - GROUPS section, remove specific equipment
+    // For Wet Test - GROUP TESTS section, remove specific equipment
     if (activeBasicRadicalsSubsection === "wet" && activeFlameTest === "GR") {
       const groupsExclude = ["Dilute H2SO4", "Dilute H₂SO₄", "Conc. H2SO4", "Concentrated H₂SO₄", "Glass Rod", "Glass rod", "Platinum Wire", "Watch glass", "Concentrated HCl", "Conc. HCl", "MnO2", "MnO₂"];
       dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
