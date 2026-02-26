@@ -189,7 +189,7 @@ const FLAME_TEST_SECTIONS = [
 const WET_TEST_BASIC_SECTIONS = [
   {
     symbol: "GR",
-    label: "GROUPS",
+    label: "GROUP TESTS",
     description: "Classify and identify basic radicals based on their group characteristics and reactions.",
   },
 ];
@@ -508,7 +508,7 @@ export default function ChemicalEquilibriumApp({
 
   // Equipment modifications for Basic Radicals section
   if (activeTopLevelSection === "BR" && activeBasicRadicalsSubsection !== null && dryTestEquipmentToUse) {
-    // For Wet Test - GROUPS section, remove specific equipment
+    // For Wet Test - GROUP TESTS section, remove specific equipment
     if (activeBasicRadicalsSubsection === "wet" && activeFlameTest === "GR") {
       const groupsExclude = ["Dilute H2SO4", "Dilute H₂SO₄", "Conc. H2SO4", "Concentrated H₂SO₄", "Glass Rod", "Glass rod", "Platinum Wire", "Watch glass", "Concentrated HCl", "Conc. HCl", "MnO2", "MnO₂"];
       dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
@@ -1190,32 +1190,39 @@ export default function ChemicalEquilibriumApp({
                       <tr className="bg-teal-50">
                         <th className="border border-teal-300 px-4 py-3 text-left font-semibold text-teal-900 w-20">Group</th>
                         <th className="border border-teal-300 px-4 py-3 text-left font-semibold text-teal-900">Ions</th>
+                        <th className="border border-teal-300 px-4 py-3 text-left font-semibold text-teal-900">Ions Name</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">I</td>
                         <td className="border border-gray-300 px-4 py-3">Pb²⁺</td>
+                        <td className="border border-gray-300 px-4 py-3">Lead(II)</td>
                       </tr>
                       <tr className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">II</td>
                         <td className="border border-gray-300 px-4 py-3">Pb²⁺, Cu²⁺, As³⁺</td>
+                        <td className="border border-gray-300 px-4 py-3">Lead(II), Copper(II), Arsenic(III)</td>
                       </tr>
                       <tr className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">III</td>
                         <td className="border border-gray-300 px-4 py-3">Fe³⁺, Al³⁺, Mn²⁺</td>
+                        <td className="border border-gray-300 px-4 py-3">Iron(III), Aluminium(III), Manganese(II)</td>
                       </tr>
                       <tr className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">IV</td>
                         <td className="border border-gray-300 px-4 py-3">Zn²⁺, Mn²⁺, Co²⁺, Ni²⁺</td>
+                        <td className="border border-gray-300 px-4 py-3">Zinc(II), Manganese(II), Cobalt(II), Nickel(II)</td>
                       </tr>
                       <tr className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">V</td>
                         <td className="border border-gray-300 px-4 py-3">Ba²⁺, Sr²⁺, Ca²⁺</td>
+                        <td className="border border-gray-300 px-4 py-3">Barium(II), Strontium(II), Calcium(II)</td>
                       </tr>
                       <tr className="hover:bg-gray-50">
                         <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">VI</td>
                         <td className="border border-gray-300 px-4 py-3">Mg²⁺</td>
+                        <td className="border border-gray-300 px-4 py-3">Magnesium(II)</td>
                       </tr>
                     </tbody>
                   </table>
