@@ -1,0 +1,1244 @@
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, ArrowRight, Play, Pause, Info, X } from "lucide-react";
+import { Link, useRoute } from "wouter";
+import ChemicalEquilibriumVirtualLab from "./VirtualLab";
+import ChemicalEquilibriumData, { PHHClExperiment, BASIC_DRY_TEST_STEPS } from "../data";
+import type { ExperimentStep, DryTestMode } from "../types";
+import { useUpdateProgress } from "@/hooks/use-experiments";
+
+interface ChemicalEquilibriumAppProps {
+  onBack?: () => void;
+}
+
+const WET_ACID_TEST_EQUIPMENT = [
+  "Test Tubes",
+  "Bunsen Burner (virtual heat source)",
+  "Salt Sample",
+  "Dilute HNO₃",
+  "Dil. HCL",
+  "AgNO₃",
+  "Soda extract",
+  "BaCl₂ Solution",
+  "Sodium Nitroprusside Solution",
+  "NH₄OH (Ammonium hydroxide)",
+  "Magnesia mixture (PO₄³⁻)",
+  "CaCl₂ Solution",
+  "FeCl₃",
+];
+
+const WET_BASIC_TEST_EQUIPMENT = [
+  "Test Tube",
+  "Salt Sample",
+  "Dilute HCl",
+  "H₂S Gas",
+  "Solid NH₄Cl",
+  "NH₄OH Solution",
+  "Solid (NH₄)₂CO₃",
+  "Na₂HPO₄ Solution",
+  "Bunsen Burner (virtual heat source)",
+];
+
+const DRY_TEST_MODE_CONFIG: Record<DryTestMode, {
+  letter: string;
+  label: string;
+  equipment: string[];
+}> = {
+  acid: {
+    letter: "A",
+    label: "Dry Tests for Acid Radicals",
+    equipment: ChemicalEquilibriumData.equipment,
+  },
+  basic: {
+    letter: "B",
+    label: "Dry Tests for Basic Radicals",
+    equipment: [
+      "Test Tubes",
+      "Salt Sample",
+      "Glass Rod",
+      "Bunsen Burner (virtual heat source)",
+      "Conc. HCl",
+      "Anhydrous Na₂CO₃",
+      "NaOH",
+    ],
+  },
+  wet: {
+    letter: "C",
+    label: "Wet Test for Acid Radicals",
+    equipment: WET_ACID_TEST_EQUIPMENT,
+  },
+  wetBasic: {
+    letter: "D",
+    label: "Wet Test for Basic Radicals",
+    equipment: WET_BASIC_TEST_EQUIPMENT,
+  },
+};
+
+const SPECIAL_CASES_ACID_EQUIPMENT = [
+  "Test Tubes",
+  "Salt Sample",
+  "Dilute H2SO4",
+  "Conc. H2SO4",
+  "Glass container",
+  "Glass Rod",
+  "Bunsen Burner (virtual heat source)",
+];
+
+const DRY_TEST_MODE_ORDER: DryTestMode[] = ["acid", "basic", "wet", "wetBasic"];
+const SALT_ANALYSIS_DRY_TEST_MODE_ORDER: DryTestMode[] = ["acid", "wet"];
+
+const CHLORIDE_ACID_EQUIPMENT = [
+  "Acidified Potassium Dichromate (K₂Cr₂O₇)",
+  "NaOH Solution",
+  "Acetic Acid",
+  "Acetate Solution",
+  "Dilute HNO₃",
+  "AgNO₃",
+  "NH₄OH (Ammonium hydroxide)",
+  "Soda extract",
+  "Dil. H2SO4",
+  "Chromyl Chloride",
+];
+const CHLORIDE_ACID_EQUIPMENT_LABEL = CHLORIDE_ACID_EQUIPMENT.join(", ");
+
+// Equipment additions specific to Bromide dry acid flow
+const BROMIDE_ACID_EQUIPMENT = [
+  "AgNO₃",
+];
+const BROMIDE_ACID_EQUIPMENT_LABEL = BROMIDE_ACID_EQUIPMENT.join(", ");
+
+// Equipment items to exclude for Chloride dry acid flow
+const CHLORIDE_EXCLUDE_EQUIPMENT = [
+  "NH₄OH (Ammonium hydroxide)",
+  "AgNO₃",
+  "Acetate Solution",
+  "NaOH Solution",
+  "NaOH",
+  "CHCl3",
+  "Dilute HNO₃",
+  "Dil. HNO₃",
+  "Dil. HCL",
+  "Dil. HCl",
+  "Dilute HCl",
+  "Soda extract",
+  "KMnO4",
+  "Acidified KMnO4",
+  "Acetic Acid",
+  "Acetic acid",
+];
+
+const HALIDE_SECTIONS = [
+  {
+    symbol: "Br",
+    label: "Bromide Check",
+    description:
+      "Watch for creamy precipitates when silver nitrate meets the bromide fraction of your sample.",
+  },
+  {
+    symbol: "I",
+    label: "Iodide Check",
+    description: "Note the pale yellow precipitation that signals iodide alongside the reference visuals.",
+  },
+  {
+    symbol: "Cl",
+    label: "Chloride Check",
+    description: "Confirm the white AgCl precipitate and how it dissolves in ammonia to complete the chloride callout.",
+  },
+  {
+    symbol: "S",
+    label: "Sulfide Check",
+    description: "Document the black or dark residues that appear when sulfide radicals react with metal ions.",
+  },
+  {
+    symbol: "SC",
+    label: "Special Cases",
+    description: "Handle unusual or edge-case salts and procedures specific to this experiment.",
+  },
+];
+
+const FLAME_TEST_SECTIONS = [
+  {
+    symbol: "Fl",
+    label: "Flame Test",
+    description: "Observe distinctive flame colors indicating presence of various metal ions.",
+  },
+  {
+    symbol: "BB",
+    label: "Borax Bead Test",
+    description: "Use borax beads to identify metal ions through characteristic color changes.",
+  },
+  {
+    symbol: "Ch",
+    label: "Charcoal Test",
+    description: "Apply the charcoal test to detect metal ions and their oxidation states.",
+  },
+  {
+    symbol: "Co",
+    label: "Cobalt Nitrate Test",
+    description: "Use cobalt nitrate reagent to identify basic radicals through color reactions.",
+  },
+  {
+    symbol: "Am",
+    label: "Ammonium Radical Test",
+    description: "Detect ammonium radicals using appropriate reagents and heating techniques.",
+  },
+];
+
+const WET_TEST_BASIC_SECTIONS = [
+  {
+    symbol: "GR",
+    label: "GROUPS",
+    description: "Classify and identify basic radicals based on their group characteristics and reactions.",
+  },
+];
+
+export default function ChemicalEquilibriumApp({
+  onBack,
+}: ChemicalEquilibriumAppProps) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [experimentStarted, setExperimentStarted] = useState(false);
+  const [activeDryTestMode, setActiveDryTestMode] = useState<DryTestMode>("acid");
+  const [activeHalide, setActiveHalide] = useState(
+    HALIDE_SECTIONS[0]?.symbol ?? "Br",
+  );
+  const [halideExplicitlySelected, setHalideExplicitlySelected] = useState(false);
+  const [activeTopLevelSection, setActiveTopLevelSection] = useState<"AR" | "BR" | "SC" | null>(null);
+  const [activeFlameTest, setActiveFlameTest] = useState(
+    FLAME_TEST_SECTIONS[0]?.symbol ?? "Fl",
+  );
+  const [activeBasicRadicalsSubsection, setActiveBasicRadicalsSubsection] = useState<"dry" | "wet" | null>(null);
+  const [showWetBasicGroupsModal, setShowWetBasicGroupsModal] = useState(false);
+
+  const [match, params] = useRoute("/experiment/:id");
+  const experimentId = Number(params?.id ?? 4);
+  const experiment = experimentId === PHHClExperiment.id ? PHHClExperiment : ChemicalEquilibriumData;
+  const isDryTestExperiment = experiment.id === ChemicalEquilibriumData.id;
+  const updateProgress = useUpdateProgress();
+  const applicableDryTestModes = isDryTestExperiment ? SALT_ANALYSIS_DRY_TEST_MODE_ORDER : DRY_TEST_MODE_ORDER;
+  // For Basic Radicals wet test, use "wetBasic" mode internally
+  const effectiveDryTestMode = (isDryTestExperiment && activeTopLevelSection === "BR" && activeBasicRadicalsSubsection === "wet") ? "wetBasic" : activeDryTestMode;
+  const activeDryTestConfig = DRY_TEST_MODE_CONFIG[effectiveDryTestMode];
+  let baseDryTestEquipment = activeDryTestConfig.equipment;
+  // If this is the Salt Analysis experiment and user selected "Special Cases" in dry acid mode,
+  // restrict equipment to the curated minimal list specified above.
+  if (activeDryTestMode === "acid" && activeHalide === "SC" && experiment.id === ChemicalEquilibriumData.id) {
+    baseDryTestEquipment = SPECIAL_CASES_ACID_EQUIPMENT;
+  }
+  // For Salt Analysis special cases, when Wet Test for Acid Radicals is selected,
+  // remove specific reagents not used in special cases.
+  if (activeDryTestMode === "wet" && activeHalide === "SC" && experiment.id === ChemicalEquilibriumData.id) {
+    const SPECIAL_CASES_WET_EXCLUDE = [
+      "AgNO₃",
+      "Sodium Nitroprusside Solution",
+      "NH₄OH (Ammonium hydroxide)",
+      "CaCl₂ Solution",
+      "FeCl₃",
+      "NaOH",
+    ];
+    baseDryTestEquipment = (baseDryTestEquipment as string[]).filter((name) =>
+      !SPECIAL_CASES_WET_EXCLUDE.includes(name)
+    );
+    // Add Acidified Potassium Dichromate to the equipment list for special cases wet acid flow
+    baseDryTestEquipment = Array.from(new Set([...(baseDryTestEquipment as string[]), "Acidified Potassium Dichromate (K₂Cr₂O₇)"]));
+  }
+  const isChlorideDryAcidFlow = activeDryTestMode === "acid" && activeHalide === "Cl";
+  const isBromideDryAcidFlow = activeDryTestMode === "acid" && activeHalide === "Br";
+  const extraDryAcidEquipment = isChlorideDryAcidFlow
+    ? CHLORIDE_ACID_EQUIPMENT
+    : isBromideDryAcidFlow
+    ? BROMIDE_ACID_EQUIPMENT
+    : [];
+  // For bromide dry acid flow, remove reagents that are not used in this specific section
+  const BROMIDE_EXCLUDE_EQUIPMENT = [
+    "AgNO₃",
+    "Acidified KMnO4",
+    "CHCl3",
+    "Soda extract",
+    "Dilute HCl",
+    "Dilute HNO₃",
+  ];
+
+  // For iodide dry acid flow, remove specified reagents from the equipment list
+  const IODIDE_EXCLUDE_EQUIPMENT = [
+    "MnO₂",
+    "Acidified KMnO4",
+    "CHCl3",
+    "Soda extract",
+    "Dilute HNO₃",
+    "Dilute HCl",
+  ];
+
+  let dryTestEquipmentToUse = extraDryAcidEquipment.length
+    ? Array.from(new Set([...(baseDryTestEquipment ?? []), ...extraDryAcidEquipment]))
+    : baseDryTestEquipment;
+
+  if (isBromideDryAcidFlow && dryTestEquipmentToUse) {
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+      (name) => !BROMIDE_EXCLUDE_EQUIPMENT.includes(name)
+    );
+
+    // Ensure MnO2 appears above the Bunsen Burner in the equipment list for bromide dry acid flow
+    const mnIndex = (dryTestEquipmentToUse as string[]).findIndex((n) => n.includes("MnO"));
+    const bunsenIndex = (dryTestEquipmentToUse as string[]).findIndex((n) => n.includes("Bunsen Burner"));
+    if (mnIndex > -1 && bunsenIndex > -1 && mnIndex > bunsenIndex) {
+      const arr = [...(dryTestEquipmentToUse as string[])];
+      const [mnItem] = arr.splice(mnIndex, 1);
+      arr.splice(bunsenIndex, 0, mnItem);
+      dryTestEquipmentToUse = arr;
+    }
+  }
+
+  // For chloride dry acid flow, remove specified reagents from the equipment list
+  if (isChlorideDryAcidFlow && dryTestEquipmentToUse) {
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+      (name) => !CHLORIDE_EXCLUDE_EQUIPMENT.includes(name)
+    );
+
+    // Move Bunsen Burner to the bottom of the equipment list for chloride dry acid flow
+    const arr = [...(dryTestEquipmentToUse as string[])];
+    const bunsenIndex = arr.findIndex((n) => n.includes("Bunsen Burner"));
+    if (bunsenIndex > -1) {
+      const [bunsenItem] = arr.splice(bunsenIndex, 1);
+      arr.push(bunsenItem);
+      dryTestEquipmentToUse = arr;
+    }
+  }
+
+  // For iodide dry acid flow, remove reagents that are not used in this specific section
+  const isIodideDryAcidFlow = activeDryTestMode === "acid" && activeHalide === "I";
+  if (isIodideDryAcidFlow && dryTestEquipmentToUse) {
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+      (name) => !IODIDE_EXCLUDE_EQUIPMENT.includes(name)
+    );
+  }
+
+  // For Salt Analysis, Sulfide check in the DRY test for Acid Radicals,
+  // keep only the requested equipment.
+  const isSulfideDryAcidFlow = activeDryTestMode === "acid" && activeHalide === "S";
+  if (isSulfideDryAcidFlow && experiment.id === ChemicalEquilibriumData.id && dryTestEquipmentToUse) {
+    // Keep only the requested equipment for the sulfide dry acid flow
+    const SULFIDE_DRY_KEEP = [
+      "Test Tubes",
+      "Salt Sample",
+      "Bunsen Burner (virtual heat source)",
+      "Glass Rod",
+      "Glass container",
+      "Concentrated H₂SO₄",
+    ];
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter((name) =>
+      SULFIDE_DRY_KEEP.includes(name)
+    );
+
+    // Enforce the exact requested order for sulfide dry acid flow
+    const desiredOrder = [
+      "Test Tubes",
+      "Salt Sample",
+      "Concentrated H₂SO₄",
+      "Glass Rod",
+      "Glass container",
+      "Bunsen Burner (virtual heat source)",
+    ];
+
+    const ordered = desiredOrder.filter((n) => (dryTestEquipmentToUse as string[]).includes(n));
+    // Also include any remaining items that might be present but not in desiredOrder after the ordered ones
+    const remaining = (dryTestEquipmentToUse as string[]).filter((n) => !ordered.includes(n));
+    dryTestEquipmentToUse = [...ordered, ...remaining];
+  }
+
+  // For Salt Analysis, use WET_BASIC_TEST_EQUIPMENT when Basic Radicals > Wet Test is selected
+  if (isDryTestExperiment && activeTopLevelSection === "BR" && activeBasicRadicalsSubsection === "wet") {
+    dryTestEquipmentToUse = WET_BASIC_TEST_EQUIPMENT;
+  }
+
+  // For Salt Analysis, Bromide check in the WET test for Acid Radicals,
+  // keep only the requested equipment and remove the rest.
+  const isBromideWetAcidFlow = activeDryTestMode === "wet" && activeHalide === "Br";
+  if (isBromideWetAcidFlow && experiment.id === ChemicalEquilibriumData.id && dryTestEquipmentToUse) {
+    // Ensure CHCl3 and KMnO4 are available in the equipment list for bromide wet acid flow
+    dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "CHCl3", "KMnO4"]));
+
+    // Keep only the requested equipment for the bromide wet acid flow
+    const BROMIDE_WET_KEEP = [
+      "Test Tubes",
+      "Salt Sample",
+      "Bunsen Burner (virtual heat source)",
+      "Dilute HNO₃",
+      "AgNO₃",
+      "Soda extract",
+      "Dil. HCL",
+      "CHCl3",
+      "KMnO4",
+      "Acidified KMnO4",
+    ];
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter((name) =>
+      BROMIDE_WET_KEEP.includes(name)
+    );
+
+    // Enforce the exact requested order for bromide wet acid flow
+    const desiredOrder = [
+      "Test Tubes",
+      "Salt Sample",
+      "Soda extract",
+      "Dilute HNO₃",
+      "AgNO₃",
+      "Dil. HCL",
+      "CHCl3",
+      "KMnO4",
+      "Bunsen Burner (virtual heat source)",
+    ];
+
+    const ordered = desiredOrder.filter((n) => (dryTestEquipmentToUse as string[]).includes(n));
+    // Also include any remaining items that might be present but not in desiredOrder after the ordered ones
+    const remaining = (dryTestEquipmentToUse as string[]).filter((n) => !ordered.includes(n));
+    dryTestEquipmentToUse = [...ordered, ...remaining];
+  }
+
+  // For Salt Analysis, Iodide check in the WET test for Acid Radicals,
+  // manage equipment items and enforce specific ordering.
+  const isIodideWetAcidFlow = activeDryTestMode === "wet" && activeHalide === "I";
+  if (isIodideWetAcidFlow && experiment.id === ChemicalEquilibriumData.id && dryTestEquipmentToUse) {
+    // Ensure CHCl3 and KMnO4 are available in the equipment list for iodide wet acid flow
+    dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "CHCl3", "KMnO4"]));
+
+    // Remove specific equipment items for iodide wet acid flow
+    const IODIDE_WET_EXCLUDE = [
+      "BaCl₂ Solution",
+      "Sodium Nitroprusside Solution",
+      "NH₄OH (Ammonium hydroxide)",
+      "Magnesia mixture (PO₄³⁻)",
+      "CaCl₂ Solution",
+      "FeCl₃",
+    ];
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter((name) =>
+      !IODIDE_WET_EXCLUDE.includes(name)
+    );
+
+    // Enforce the exact requested order for iodide wet acid flow
+    const desiredOrder = [
+      "Test Tubes",
+      "Salt Sample",
+      "Soda extract",
+      "Dilute HNO₃",
+      "AgNO₃",
+      "Dil. HCL",
+      "CHCl3",
+      "KMnO4",
+      "Bunsen Burner (virtual heat source)",
+    ];
+
+    const ordered = desiredOrder.filter((n) => (dryTestEquipmentToUse as string[]).includes(n));
+    // Also include any remaining items that might be present but not in desiredOrder after the ordered ones
+    const remaining = (dryTestEquipmentToUse as string[]).filter((n) => !ordered.includes(n));
+    dryTestEquipmentToUse = [...ordered, ...remaining];
+  }
+
+  // For Salt Analysis, Chloride check in the WET test for Acid Radicals,
+  // keep only the requested equipment and add Acidified Potassium Dichromate.
+  const isChlorideWetAcidFlow = activeDryTestMode === "wet" && activeHalide === "Cl";
+  if (isChlorideWetAcidFlow && experiment.id === ChemicalEquilibriumData.id && dryTestEquipmentToUse) {
+    // Add Acidified Potassium Dichromate to the equipment list for chloride wet acid flow
+    dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "Acidified Potassium Dichromate (K₂Cr₂O₇)"]));
+
+    // Keep only the requested equipment for the chloride wet acid flow
+    const CHLORIDE_WET_KEEP = [
+      "Test Tubes",
+      "Salt Sample",
+      "Bunsen Burner (virtual heat source)",
+      "AgNO₃",
+      "Acidified Potassium Dichromate (K₂Cr₂O₇)",
+    ];
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter((name) =>
+      CHLORIDE_WET_KEEP.includes(name)
+    );
+
+    // Enforce the exact requested order for chloride wet acid flow
+    const desiredOrder = [
+      "Test Tubes",
+      "Salt Sample",
+      "AgNO₃",
+      "Acidified Potassium Dichromate (K₂Cr₂O₇)",
+      "Bunsen Burner (virtual heat source)",
+    ];
+
+    const ordered = desiredOrder.filter((n) => (dryTestEquipmentToUse as string[]).includes(n));
+    // Also include any remaining items that might be present but not in desiredOrder after the ordered ones
+    const remaining = (dryTestEquipmentToUse as string[]).filter((n) => !ordered.includes(n));
+    dryTestEquipmentToUse = [...ordered, ...remaining];
+  }
+
+  // For Salt Analysis, Sulfide check in the WET test for Acid Radicals,
+  // keep only the requested equipment and add NaOH.
+  const isSulfideWetAcidFlow = activeDryTestMode === "wet" && activeHalide === "S";
+  if (isSulfideWetAcidFlow && experiment.id === ChemicalEquilibriumData.id && dryTestEquipmentToUse) {
+    // Add NaOH to the equipment list for sulfide wet acid flow
+    dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "NaOH"]));
+
+    // Keep only the requested equipment for the sulfide wet acid flow
+    const SULFIDE_WET_KEEP = [
+      "Test Tubes",
+      "Salt Sample",
+      "Bunsen Burner (virtual heat source)",
+      "Soda extract",
+      "Sodium Nitroprusside Solution",
+      "NaOH",
+    ];
+    dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter((name) =>
+      SULFIDE_WET_KEEP.includes(name)
+    );
+
+    // Enforce the exact requested order for sulfide wet acid flow
+    const desiredOrder = [
+      "Test Tubes",
+      "Salt Sample",
+      "Soda extract",
+      "Sodium Nitroprusside Solution",
+      "NaOH",
+      "Bunsen Burner (virtual heat source)",
+    ];
+
+    const ordered = desiredOrder.filter((n) => (dryTestEquipmentToUse as string[]).includes(n));
+    // Also include any remaining items that might be present but not in desiredOrder after the ordered ones
+    const remaining = (dryTestEquipmentToUse as string[]).filter((n) => !ordered.includes(n));
+    dryTestEquipmentToUse = [...ordered, ...remaining];
+  }
+
+  // Equipment modifications for Basic Radicals section
+  if (activeTopLevelSection === "BR" && activeBasicRadicalsSubsection !== null && dryTestEquipmentToUse) {
+    // For Wet Test - GROUPS section, remove specific equipment
+    if (activeBasicRadicalsSubsection === "wet" && activeFlameTest === "GR") {
+      const groupsExclude = ["Dilute H2SO4", "Dilute H₂SO₄", "Conc. H2SO4", "Concentrated H₂SO₄", "Glass Rod", "Glass rod", "Platinum Wire", "Watch glass", "Concentrated HCl", "Conc. HCl", "MnO2", "MnO₂"];
+      dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+        (name) => !groupsExclude.some(item => name.includes(item))
+      );
+    } else {
+      // For Dry Test section, apply existing modifications
+      const basicRadicalsExclude = ["MnO₂", "MnO2", "Glass container", "Concentrated H₂SO₄"];
+      dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+        (name) => !basicRadicalsExclude.some(item => name.includes(item))
+      );
+
+      // Specific modifications for different Basic Radicals tests
+      if (activeFlameTest === "BB") {
+        // Borax Bead Test: Remove Concentrated HCl variants
+        dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+          (name) => !name.includes("Concentrated HCl") && !name.includes("Conc. HCl")
+        );
+        // Add Borax and Platinum Wire for Borax Bead Test
+        dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "Borax", "Platinum Wire"]));
+      } else if (activeFlameTest === "Am") {
+        // Ammonium Radical Test: Remove Platinum Wire, Watch glass, and Concentrated HCl
+        dryTestEquipmentToUse = (dryTestEquipmentToUse as string[]).filter(
+          (name) => !name.includes("Platinum Wire") && !name.includes("Watch glass") && !name.includes("Concentrated HCl") && !name.includes("Conc. HCl")
+        );
+        // Add Na₂CO₃ and pH paper for Ammonium Radical Test
+        dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "Na₂CO₃", "pH paper"]));
+      } else {
+        // Add Platinum Wire, Watch glass & concentrated HCL for other Basic Radicals tests (like Flame Test)
+        dryTestEquipmentToUse = Array.from(new Set([...(dryTestEquipmentToUse as string[]), "Platinum Wire", "Watch glass", "Concentrated HCl"]));
+      }
+    }
+  }
+
+  // Filter FLAME_TEST_SECTIONS for Basic Radicals - remove Charcoal Test (Ch) and Cobalt Nitrate Test (Co)
+  const displayedFlameTestSections = activeTopLevelSection === "BR" && activeBasicRadicalsSubsection === "dry"
+    ? FLAME_TEST_SECTIONS.filter((section) => section.symbol !== "Ch" && section.symbol !== "Co")
+    : FLAME_TEST_SECTIONS;
+
+  const activeStepDetails =
+    isDryTestExperiment && activeDryTestMode === "basic"
+      ? BASIC_DRY_TEST_STEPS
+      : experiment.stepDetails;
+
+  // Auto-start when URL contains ?autostart=1 for the PH experiment
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const auto = params.get("autostart");
+      if (auto === "1") {
+        setExperimentStarted(true);
+        setIsRunning(true);
+      }
+    } catch (e) {
+      // ignore in non-browser env
+    }
+  }, [experimentId]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isRunning && experimentStarted) {
+      interval = setInterval(() => {
+        setTimer((timer) => timer + 1);
+      }, 1000);
+    } else if (!isRunning && timer !== 0) {
+      if (interval) clearInterval(interval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRunning, timer, experimentStarted]);
+
+  useEffect(() => {
+    setCurrentStep(0);
+    setExperimentStarted(false);
+    setIsRunning(false);
+    setTimer(0);
+  }, [activeDryTestMode]);
+
+  useEffect(() => {
+    // Reset activeBasicRadicalsSubsection when Basic Radicals section is closed
+    if (activeTopLevelSection !== "BR") {
+      setActiveBasicRadicalsSubsection(null);
+    }
+    // Reset halideExplicitlySelected when Acid Radicals section is closed
+    if (activeTopLevelSection !== "AR") {
+      setHalideExplicitlySelected(false);
+    }
+  }, [activeTopLevelSection]);
+
+  // Ensure activeDryTestMode is valid for the current experiment
+  useEffect(() => {
+    if (!applicableDryTestModes.includes(activeDryTestMode)) {
+      setActiveDryTestMode(applicableDryTestModes[0]);
+    }
+  }, [isDryTestExperiment]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const toggleTimer = () => {
+    if (experimentStarted) {
+      setIsRunning(!isRunning);
+    }
+  };
+
+  const handleStartExperiment = () => {
+    setExperimentStarted(true);
+    setIsRunning(true);
+  };
+
+  const handleCompleteStep = () => {
+    if (currentStep < activeStepDetails.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handleNextStep = () => {
+    if (currentStep < activeStepDetails.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const handlePreviousStep = () => {
+    // Disable going back to previous steps - steps are linear and non-reversible
+    return;
+  };
+
+  const currentStepData = activeStepDetails[currentStep];
+  const progressPercentage = Math.round(
+    ((currentStep + 1) / activeStepDetails.length) * 100,
+  );
+
+  useEffect(() => {
+    const total = activeStepDetails.length;
+    const done = experimentStarted ? Math.min(currentStep + 1, total) : 0;
+    updateProgress.mutate({
+      experimentId,
+      currentStep: done,
+      completed: done >= total,
+      progressPercentage: Math.round((done / total) * 100),
+    });
+  }, [experimentStarted, currentStep, activeStepDetails.length, experimentId]);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header with breadcrumb */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center mb-6">
+          {onBack ? (
+            <button
+              onClick={onBack}
+              className="text-blue-600 hover:text-blue-700 flex items-center"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Experiments
+            </button>
+          ) : (
+            <Link
+              href="/"
+              className="text-blue-600 hover:text-blue-700 flex items-center"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Experiments
+            </Link>
+          )}
+        </div>
+
+        {/* Experiment Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {experiment.title}
+          </h1>
+          <p className="text-gray-600 mb-6">{experiment.description}</p>
+
+          {isDryTestExperiment && (
+            <>
+              {/* Acid Radicals Description Box */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setActiveTopLevelSection(activeTopLevelSection === "AR" ? null : "AR")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setActiveTopLevelSection(activeTopLevelSection === "AR" ? null : "AR");
+                  }
+                }}
+                className={`mb-6 p-4 rounded-lg transition-all cursor-pointer ${
+                  activeTopLevelSection === "AR"
+                    ? "bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400"
+                    : "bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200"
+                }`}
+                aria-pressed={activeTopLevelSection === "AR"}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">AR</span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 text-sm">Acid Radicals</h3>
+                    <p className="text-gray-600 text-sm mt-1">Identify and analyze acid radicals present in your sample through systematic testing procedures.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic Radicals Description Box */}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setActiveTopLevelSection(activeTopLevelSection === "BR" ? null : "BR")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setActiveTopLevelSection(activeTopLevelSection === "BR" ? null : "BR");
+                  }
+                }}
+                className={`mb-6 p-4 rounded-lg transition-all cursor-pointer ${
+                  activeTopLevelSection === "BR"
+                    ? "bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-400"
+                    : "bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200"
+                }`}
+                aria-pressed={activeTopLevelSection === "BR"}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">BR</span>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 text-sm">Basic Radicals</h3>
+                    <p className="text-gray-600 text-sm mt-1">Detect and examine basic radicals in your sample using established qualitative analysis methods.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic Radicals Subsections - Only show when Basic Radicals is selected */}
+              {activeTopLevelSection === "BR" && (
+                <div className="mb-6">
+                  {/* Dry Test and Wet Test Headers - Horizontal Layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    {/* Dry Test for Basic Radicals */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setActiveBasicRadicalsSubsection(activeBasicRadicalsSubsection === "dry" ? null : "dry")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setActiveBasicRadicalsSubsection(activeBasicRadicalsSubsection === "dry" ? null : "dry");
+                        }
+                      }}
+                      className={`p-4 rounded-lg transition-all cursor-pointer ${
+                        activeBasicRadicalsSubsection === "dry"
+                          ? "bg-gradient-to-r from-orange-100 to-amber-100 border-2 border-orange-400"
+                          : "bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200"
+                      }`}
+                      aria-pressed={activeBasicRadicalsSubsection === "dry"}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">D</span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 text-sm">Dry Test for Basic Radicals</h3>
+                          <p className="text-gray-600 text-sm mt-1">Perform dry tests including flame test, borax bead test, and other identification methods.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Wet Test for Basic Radicals */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setActiveBasicRadicalsSubsection(activeBasicRadicalsSubsection === "wet" ? null : "wet")}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setActiveBasicRadicalsSubsection(activeBasicRadicalsSubsection === "wet" ? null : "wet");
+                        }
+                      }}
+                      className={`p-4 rounded-lg transition-all cursor-pointer ${
+                        activeBasicRadicalsSubsection === "wet"
+                          ? "bg-gradient-to-r from-teal-100 to-cyan-100 border-2 border-teal-400"
+                          : "bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200"
+                      }`}
+                      aria-pressed={activeBasicRadicalsSubsection === "wet"}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-teal-600 rounded-full flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">W</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-gray-900 text-sm">Wet Test for Basic Radicals</h3>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowWetBasicGroupsModal(true);
+                              }}
+                              className="p-1 hover:bg-teal-200 rounded-full transition-colors"
+                              title="View ions grouping information"
+                            >
+                              <Info size={18} className="text-teal-600" />
+                            </button>
+                          </div>
+                          <p className="text-gray-600 text-sm mt-1">Conduct wet tests to classify and identify basic radical groups.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Flame Test Sections Grid - Only show when Dry Test is selected */}
+                  {activeBasicRadicalsSubsection === "dry" && (
+                    <div className="halide-section-grid mb-6">
+                      {displayedFlameTestSections.map((section) => {
+                        const isActiveFlameTest = activeFlameTest === section.symbol;
+                        return (
+                          <article
+                            key={section.symbol}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setActiveFlameTest(section.symbol)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setActiveFlameTest(section.symbol);
+                              }
+                            }}
+                            className={`p-4 rounded-lg transition-all cursor-pointer ${
+                              isActiveFlameTest
+                                ? "bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400"
+                                : "bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200"
+                            }`}
+                            aria-pressed={isActiveFlameTest}
+                            aria-expanded={isActiveFlameTest}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">{section.symbol}</span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-gray-900">{section.label}</p>
+                                <p className="text-xs text-gray-500 mt-1">{section.description}</p>
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Wet Test Basic Sections Grid - Only show when Wet Test is selected */}
+                  {activeBasicRadicalsSubsection === "wet" && (
+                    <div className="halide-section-grid mb-6">
+                      {WET_TEST_BASIC_SECTIONS.map((section) => {
+                        const isActiveWetTest = activeFlameTest === section.symbol;
+                        return (
+                          <article
+                            key={section.symbol}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setActiveFlameTest(section.symbol)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setActiveFlameTest(section.symbol);
+                              }
+                            }}
+                            className={`p-4 rounded-lg transition-all cursor-pointer ${
+                              isActiveWetTest
+                                ? "bg-gradient-to-r from-blue-100 to-cyan-100 border-2 border-blue-400"
+                                : "bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-200"
+                            }`}
+                            aria-pressed={isActiveWetTest}
+                            aria-expanded={isActiveWetTest}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span className="text-white font-bold text-sm">{section.symbol}</span>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-semibold text-gray-900">{section.label}</p>
+                                <p className="text-xs text-gray-500 mt-1">{section.description}</p>
+                              </div>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+
+              {/* Halide Sections Grid - Only show when Acid Radicals is selected */}
+              {activeTopLevelSection === "AR" && (
+          <div className="halide-section-grid mb-6">
+            {HALIDE_SECTIONS.map((section) => {
+              const isActiveHalide = activeHalide === section.symbol;
+              return (
+                <article
+                  key={section.symbol}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setActiveHalide(section.symbol);
+                    setHalideExplicitlySelected(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setActiveHalide(section.symbol);
+                      setHalideExplicitlySelected(true);
+                    }
+                  }}
+                  className={`halide-section-card ${isActiveHalide ? "halide-section-card--active" : ""}`}
+                  aria-pressed={isActiveHalide}
+                  aria-expanded={isActiveHalide}
+                >
+                  <div className="halide-section-card__header">
+                    <span className="halide-section-symbol" aria-hidden="true">
+                      {section.symbol}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{section.label}</p>
+                      <p className="text-xs text-gray-500 mt-1">{section.description}</p>
+                    </div>
+                  </div>
+                  {isActiveHalide && (
+                    <>
+                      <div className="dry-test-button-panel halide-section-card__dry-test-panel">
+                        {applicableDryTestModes.map((mode) => {
+                          const modeConfig = DRY_TEST_MODE_CONFIG[mode];
+                          const isActive = activeDryTestMode === mode;
+                          return (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setActiveDryTestMode(mode);
+                              }}
+                              className={`dry-test-action-card ${isActive ? "dry-test-action-card--active" : ""}`}
+                              aria-pressed={isActive}
+                              aria-label={`Select ${modeConfig.label}`}
+                            >
+                              <span className="dry-test-action-letter" aria-hidden="true">
+                                {modeConfig.letter}
+                              </span>
+                              <p className="dry-test-action-title">{modeConfig.label}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {isChlorideDryAcidFlow && experiment.id !== ChemicalEquilibriumData.id && (
+                        <div className="halide-section-card__equipment-note">
+                          Equipment highlight: {CHLORIDE_ACID_EQUIPMENT_LABEL}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+              )}
+            </>
+          )}
+
+          {/* Progress Bar - hidden for PH HCl experiment and dry tests (we show per-panel progress) */}
+          {experiment.id !== PHHClExperiment.id && !isDryTestExperiment && (
+            <>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                <span className="text-sm text-blue-600 font-semibold">{progressPercentage}%</span>
+              </div>
+              <Progress value={progressPercentage} className="h-2" />
+            </>
+          )}
+        </div>
+
+        {/* Special Cases Description Box - Only show when Special Cases is selected */}
+        {isDryTestExperiment && activeTopLevelSection === "AR" && activeHalide === "SC" && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">SC</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 text-sm">Special Cases</h3>
+                <p className="text-gray-600 text-sm mt-1">CO₃²⁻ ,NO₂⁻,  SO₃²⁻, NO₃⁻, C₂O₄²⁻, SO₄²⁻, SO₃²⁻, PO₄³⁻ radicals are present</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Experiment Progress - Only show when a specific section is selected */}
+        {isDryTestExperiment && ((activeTopLevelSection === "AR" && halideExplicitlySelected) || (activeTopLevelSection === "BR" && activeBasicRadicalsSubsection !== null)) && (
+          <div className="mb-6">
+            <div className="rounded-xl border border-gray-200 bg-gradient-to-b from-white via-slate-50 to-slate-100 shadow-sm">
+              <div className="px-6 py-5 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-[2px] text-blue-600">Experiment Progress</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mt-1">{currentStepData?.title ?? experiment.title}</h3>
+                    <p className="text-xs text-gray-500 mt-1">Follow the guided steps below to complete the dry tests.</p>
+                  </div>
+                  <div className="flex flex-col items-start md:items-end gap-2">
+                    <span className="text-xs text-gray-500">Step {currentStep + 1} of {activeStepDetails.length}</span>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500 text-white text-xs font-bold">
+                      <div className="w-2 h-2 bg-white rounded-full" />
+                      <span>STEP {currentStep + 1}</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="h-3 rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-300"
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Lab Area */}
+        <div className="w-full relative">
+          {/* Ready to Start Overlay - Only show when a specific section is selected and experiment hasn't started */}
+          {!experimentStarted && ((activeTopLevelSection === "AR" && halideExplicitlySelected) || (activeTopLevelSection === "BR" && activeBasicRadicalsSubsection !== null)) && (
+            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
+              <div className="text-center p-8 bg-white rounded-xl shadow-lg border border-gray-200 max-w-md">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Play className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Ready to Start?
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Click on the "Start Experiment" button to begin: {experiment.title}
+                </p>
+                <button
+                  onClick={handleStartExperiment}
+                  className="flex items-center space-x-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors mx-auto"
+                >
+                  <Play className="w-5 h-5" />
+                  <span>Start Experiment</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Virtual Lab Card - Only show when a specific section is selected */}
+          {((activeTopLevelSection === "AR" && halideExplicitlySelected) || (activeTopLevelSection === "BR" && activeBasicRadicalsSubsection !== null)) && (
+          <Card className="min-h-[80vh]">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="text-2xl">
+                  {experiment.title} - Virtual Laboratory
+                </span>
+                <div className="flex items-center space-x-4">
+                  {experiment.id !== PHHClExperiment.id ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleTimer}
+                        className="flex items-center"
+                      >
+                        {isRunning ? (
+                          <Pause className="h-4 w-4 mr-1" />
+                        ) : (
+                          <Play className="h-4 w-4 mr-1" />
+                        )}
+                        {formatTime(timer)}
+                      </Button>
+
+                      {!isDryTestExperiment && (
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            onClick={handlePreviousStep}
+                            disabled={true}
+                            size="sm"
+                            className="opacity-50 cursor-not-allowed"
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </Button>
+                          <div className="flex items-center space-x-2 px-2">
+                            <span className="text-sm text-gray-600">
+                              {currentStep + 1} / {activeStepDetails.length}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">
+                              <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse mr-1"></div>
+                              STEP {currentStep + 1}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={handleNextStep}
+                            disabled={
+                              currentStep === activeStepDetails.length - 1
+                            }
+                            size="sm"
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 px-2">
+                        <span className="text-sm text-gray-600">{currentStep + 1} / {activeStepDetails.length}</span>
+                        <span className="inline-flex items-center px-2 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">STEP {currentStep + 1}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ChemicalEquilibriumVirtualLab
+                key={`dry-test-${effectiveDryTestMode}`}
+                dryTestEquipment={dryTestEquipmentToUse}
+                dryTestMode={effectiveDryTestMode}
+                step={currentStepData}
+                onStepComplete={handleCompleteStep}
+                isActive={true}
+                stepNumber={currentStep + 1}
+                totalSteps={activeStepDetails.length}
+                experimentTitle={experiment.title}
+                experiment={experiment}
+                allSteps={activeStepDetails}
+                experimentStarted={experimentStarted}
+                onStartExperiment={handleStartExperiment}
+                isRunning={isRunning}
+                setIsRunning={setIsRunning}
+                onResetTimer={() => setTimer(0)}
+                onResetExperiment={() => {
+                  setExperimentStarted(isDryTestExperiment);
+                  setIsRunning(false);
+                  setTimer(0);
+                  setCurrentStep(0);
+                }}
+                timer={timer}
+                toggleTimer={toggleTimer}
+                activeHalide={activeHalide}
+                activeFlameTest={activeFlameTest}
+              />
+            </CardContent>
+          </Card>
+          )}
+        </div>
+
+        {/* Wet Test for Basic Radicals - Groups Information Modal */}
+        {showWetBasicGroupsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-teal-600 text-white p-6 flex items-center justify-between">
+                <h2 className="text-xl font-bold">Classification of Cations (Basic Radicals) by Groups</h2>
+                <button
+                  onClick={() => setShowWetBasicGroupsModal(false)}
+                  className="p-1 hover:bg-teal-500 rounded-full transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-teal-50">
+                        <th className="border border-teal-300 px-4 py-3 text-left font-semibold text-teal-900 w-20">Group</th>
+                        <th className="border border-teal-300 px-4 py-3 text-left font-semibold text-teal-900">Ions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">I</td>
+                        <td className="border border-gray-300 px-4 py-3">Pb²⁺</td>
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">II</td>
+                        <td className="border border-gray-300 px-4 py-3">Pb²⁺, Cu²⁺, As³⁺</td>
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">III</td>
+                        <td className="border border-gray-300 px-4 py-3">Fe³⁺, Al³⁺, Mn²⁺</td>
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">IV</td>
+                        <td className="border border-gray-300 px-4 py-3">Zn²⁺, Mn²⁺, Co²⁺, Ni²⁺</td>
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">V</td>
+                        <td className="border border-gray-300 px-4 py-3">Ba²⁺, Sr²⁺, Ca²⁺</td>
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-3 font-bold text-center bg-blue-50 text-blue-900">VI</td>
+                        <td className="border border-gray-300 px-4 py-3">Mg²⁺</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    These groups represent the classification of cations based on their precipitation behavior with specific reagents in wet test procedures. Each group contains cations that exhibit similar chemical reactions and can be identified through systematic qualitative analysis.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Safety Information */}
+        <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+            Safety Information
+          </h3>
+          <p className="text-yellow-700 text-sm">{experiment.safetyInfo}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
