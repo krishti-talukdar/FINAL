@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@builder.io/sdk-react": "^5.1.1"
+  }
+}
