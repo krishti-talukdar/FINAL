@@ -996,15 +996,15 @@ export default function VirtualLab({
                       <div className="flex-1">
                         <div className="font-medium text-gray-800">{log.action}</div>
                         <div className="text-sm text-gray-600">{log.observation}</div>
-                        <div className="flex items-center space-x-4 mt-2 text-xs">
+                        <div className="flex items-center space-x-6 mt-3 text-sm">
                           <span className="flex items-center">
-                            <span className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: log.colorBefore }}></span>
-                            Before: {log.colorBefore}
+                            <span className="w-5 h-5 rounded-full mr-2 shadow-sm border border-gray-200" style={{ backgroundColor: log.colorBefore }}></span>
+                            Before
                           </span>
-                          <span>→</span>
+                          <span className="text-gray-400">→</span>
                           <span className="flex items-center">
-                            <span className="w-3 h-3 rounded-full mr-1" style={{ backgroundColor: log.colorAfter }}></span>
-                            After: {log.colorAfter}
+                            <span className="w-5 h-5 rounded-full mr-2 shadow-sm border border-gray-200" style={{ backgroundColor: log.colorAfter }}></span>
+                            After
                           </span>
                         </div>
                       </div>
