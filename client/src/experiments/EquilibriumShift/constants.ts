@@ -16,7 +16,7 @@ export const REAGENT_BOTTLES: ReagentBottle[] = [
     name: 'Concentrated HCl',
     formula: 'HCl (12M)',
     color: COLORS.HCL,
-    description: 'Adds Cl⁻ ions → shifts equilibrium right �� blue color',
+    description: 'Adds Cl⁻ ions → shifts equilibrium right → blue color',
     concentration: '12.0 M'
   },
   {
