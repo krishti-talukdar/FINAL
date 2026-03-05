@@ -19,6 +19,7 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  let templateCache: string | null = null;
   const serverOptions = {
     middlewareMode: true,
     hmr: {
@@ -27,7 +28,18 @@ export async function setupVite(app: Express, server: Server) {
     },
     host: true,
     watch: {
-      ignored: ["**/node_modules/**", "**/dist/**", "**/data/**"],
+      usePolling: true,
+      interval: 1000,
+      ignored: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/data/**",
+        "**/.git/**",
+        "**/.cache/**",
+        "**/.next/**",
+        "**/temp/**",
+        "**/*.tmp"
+      ],
     },
   };
 
@@ -38,6 +50,12 @@ export async function setupVite(app: Express, server: Server) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
+      },
+      info: (msg, options) => {
+        if (msg.includes('reload')) {
+          log(`VITE RELOAD: ${msg}`, 'vite');
+        }
+        viteLogger.info(msg, options);
       },
     },
     server: serverOptions,
@@ -56,9 +74,12 @@ export async function setupVite(app: Express, server: Server) {
         "index.html",
       );
 
-      // always reload the index.html file from disk incase it changes
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      const page = await vite.transformIndexHtml(url, template);
+      // Cache the template to avoid frequent disk reads
+      if (!templateCache) {
+        templateCache = await fs.promises.readFile(clientTemplate, "utf-8");
+      }
+
+      const page = await vite.transformIndexHtml(url, templateCache);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
