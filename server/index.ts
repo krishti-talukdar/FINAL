@@ -1,10 +1,24 @@
+import compression from "compression";
+import dns from "node:dns";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+dns.setDefaultResultOrder("ipv4first");
 const app = express();
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Global error handlers to prevent server crashes
+process.on('uncaughtException', (err) => {
+  log(`Uncaught Exception: ${err.message}`, 'error');
+  console.error(err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  log(`Unhandled Rejection at: ${promise}, reason: ${reason}`, 'error');
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
