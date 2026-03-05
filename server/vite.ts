@@ -25,11 +25,12 @@ export async function setupVite(app: Express, server: Server) {
     hmr: {
       server,
       overlay: false,
+      timeout: 120000,
     },
     host: true,
     watch: {
       usePolling: true,
-      interval: 1000,
+      interval: 2000,
       ignored: [
         "**/node_modules/**",
         "**/dist/**",
@@ -46,20 +47,39 @@ export async function setupVite(app: Express, server: Server) {
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
+    plugins: [
+      ...((viteConfig.plugins as any[]) || []),
+      {
+        name: 'hmr-logger',
+        handleHotUpdate({ file, server, modules }) {
+          log(`HMR Triggered by: ${path.relative(process.cwd(), file)}`, 'vite');
+          // Filter out updates that might trigger a full reload unexpectedly
+          if (file.includes('index.html') || file.includes('main.tsx')) {
+            return [];
+          }
+          return modules;
+        }
+      }
+    ],
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
       },
       info: (msg, options) => {
+        // Suppress "page reload" info logs if they become too frequent
         if (msg.includes('reload')) {
-          log(`VITE RELOAD: ${msg}`, 'vite');
+          log(`VITE RELOAD ATTEMPT: ${msg}`, 'vite');
         }
         viteLogger.info(msg, options);
       },
     },
     server: serverOptions,
     appType: "custom",
+    optimizeDeps: {
+      ...viteConfig.optimizeDeps,
+      holdUntilResolved: true,
+    },
   });
 
   app.use(vite.middlewares);

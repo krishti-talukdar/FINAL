@@ -32,5 +32,40 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    hmr: {
+      overlay: false,
+      timeout: 120000,
+    },
+    watch: {
+      usePolling: true,
+      interval: 2000,
+      ignored: [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/data/**",
+        "**/.git/**",
+        "**/.cache/**",
+        "**/.next/**",
+        "**/temp/**",
+        "**/*.tmp"
+      ],
+    },
+  },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "wouter",
+      "lucide-react",
+      "@tanstack/react-query",
+      "framer-motion",
+      "recharts",
+      "clsx",
+      "tailwind-merge",
+      "class-variance-authority",
+      "date-fns",
+      "@builder.io/sdk-react"
+    ],
+    holdUntilResolved: true,
   },
 });
