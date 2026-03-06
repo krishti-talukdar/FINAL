@@ -48,12 +48,12 @@ const DRY_TEST_MODE_CONFIG: Record<DryTestMode, {
 }> = {
   acid: {
     letter: "A",
-    label: "Dry Tests for Acid Radicals",
+    label: "Dry tests",
     equipment: ChemicalEquilibriumData.equipment,
   },
   basic: {
     letter: "B",
-    label: "Dry Tests for Basic Radicals",
+    label: "Dry tests",
     equipment: [
       "Test Tubes",
       "Salt Sample",
@@ -66,12 +66,12 @@ const DRY_TEST_MODE_CONFIG: Record<DryTestMode, {
   },
   wet: {
     letter: "C",
-    label: "Wet Test for Acid Radicals",
+    label: "Wet tests",
     equipment: WET_ACID_TEST_EQUIPMENT,
   },
   wetBasic: {
     letter: "D",
-    label: "Wet Test for Basic Radicals",
+    label: "Wet tests",
     equipment: WET_BASIC_TEST_EQUIPMENT,
   },
 };
@@ -775,7 +775,7 @@ export default function ChemicalEquilibriumApp({
                           <span className="text-white font-bold text-sm">D</span>
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 text-sm">Dry Test for Basic Radicals</h3>
+                          <h3 className="font-semibold text-gray-900 text-sm">Dry tests</h3>
                           <p className="text-gray-600 text-sm mt-1">Perform dry tests including flame test, borax bead test, and other identification methods.</p>
                         </div>
                       </div>
@@ -805,7 +805,7 @@ export default function ChemicalEquilibriumApp({
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
-                            <h3 className="font-semibold text-gray-900 text-sm">Wet Test for Basic Radicals</h3>
+                            <h3 className="font-semibold text-gray-900 text-sm">Wet tests</h3>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

@@ -278,7 +278,7 @@ export default function VirtualLab({
         animateColorTransition(testTube.colorHex, newColor, newState);
         setTestTube(prev => ({
           ...prev,
-          contents: [...prev.contents, 'HCl'],
+          contents: prev.contents.includes('HCl') ? prev.contents : [...prev.contents, 'HCl'],
           volume: Math.min(prev.volume + volume, 15)
         }));
 
@@ -1053,7 +1053,7 @@ export default function VirtualLab({
                     <h4 className="font-semibold text-gray-700 mb-2">Contents Analysis</h4>
                     <div className="space-y-1">
                       <div className="text-sm">Volume: <span className="font-medium">{(finalVolumeUsed ?? testTube.volume).toFixed(1)} mL</span></div>
-                      <div className="text-sm">Components: <span className="font-medium">{testTube.contents.join(', ')}</span></div>
+                      <div className="text-sm">Components: <span className="font-medium">{Array.from(new Set(testTube.contents)).join(', ')}</span></div>
                       <div className="text-sm">Color: <span className="font-medium">{testTube.color}</span></div>
                     </div>
                   </div>
